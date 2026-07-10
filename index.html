@@ -1,4 +1,5 @@
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Boomer Facetime</title>
 <style>
   :root {
@@ -165,6 +166,19 @@
   }
   .sb-grow { flex: 1; }
 
+  /* local-mode data-loss caution */
+  .notice {
+    display: flex; align-items: flex-start; gap: 8px; margin-bottom: 8px; padding: 6px 8px;
+    font-size: 11px; line-height: 1.4; color: #000; background: #ffffe1;
+    box-shadow: inset -1px -1px var(--white), inset 1px 1px var(--gray),
+                inset -2px -2px var(--face-lt), inset 2px 2px var(--black);
+  }
+  .notice .notice-ico { font-weight: 700; }
+  .notice .notice-x, .notice .notice-x:active {
+    margin-left: auto; border: none; box-shadow: none; background: transparent;
+    min-height: 0; padding: 0 2px; font-weight: 700; cursor: pointer; color: #000;
+  }
+
   /* File menu (dropdown for secondary actions) */
   .menu { position: relative; }
   .menu > summary {
@@ -210,6 +224,35 @@
     min-height: 0; padding: 6px 4px; color: #000080; text-decoration: underline; font-size: 12px;
   }
   .connect-more:hover { color: #1084d0; }
+
+  /* ---- narrow screens (phones) ---- */
+  @media (max-width: 480px) {
+    body { padding: 8px 6px 40px; }
+    .winbody { padding: 6px; }
+    .summary { padding: 10px; }
+    .summary .qhead { gap: 6px; }
+    .metrics { gap: 14px; }
+    .metric { min-width: 90px; }
+    .metric .big { font-size: 22px; }
+    .metric .lbl { font-size: 10px; }
+    .calbar h2 { min-width: 0; font-size: 12px; }
+    .grid { gap: 2px; padding: 3px; }
+    .dow { font-size: 10px; }
+    .cell { min-width: 0; min-height: 54px; padding: 3px; }   /* min-width:0 lets 1fr columns shrink below the tag text */
+    .cell .num { font-size: 11px; }
+    .cell .tag { font-size: 9px; letter-spacing: 0; white-space: nowrap; }
+    .cell .hname { font-size: 8px; }
+    .notice { font-size: 10px; }
+    .pop { max-width: calc(100vw - 12px); }
+  }
+
+  /* ---- touch devices: bigger tap targets ---- */
+  @media (pointer: coarse) {
+    button, .menu > summary { min-height: 40px; }
+    .menu-list button { min-height: 40px; padding: 10px 18px 10px 12px; }
+    input, select { min-height: 34px; }
+    .cell { min-height: 62px; }
+  }
 </style>
 
 <div id="app"></div>
@@ -217,17 +260,15 @@
 <script>
 "use strict";
 
-// ---- Chrome / File System Access API gate ----------------------------------
-if (typeof window.showSaveFilePicker !== "function" || typeof window.showOpenFilePicker !== "function") {
-  document.getElementById("app").innerHTML =
-    '<div class="wrap gate-win">' +
-    '<div class="titlebar"><span class="tb-title">Boomer Facetime</span>' +
-    '<span class="tb-ctrls"><span class="tb-btn">_</span><span class="tb-btn">□</span><span class="tb-btn tb-x">✕</span></span></div>' +
-    '<div class="winbody gate"><h1>Google Chrome required</h1>' +
-    '<p>This tool saves your data to a real file on disk using the File System Access API, ' +
-    'which is only available in Chrome (or Edge). Please open <code>index.html</code> in Chrome.</p></div></div>';
-  throw new Error("File System Access API unavailable");
-}
+// ---- Storage mode ----------------------------------------------------------
+// Desktop Chromium exposes the File System Access API → data lives in a real file
+// the user picks. Everywhere else (mobile, Firefox, Safari) → data lives in this
+// browser's IndexedDB; Export/Import bridges between devices.
+const HAS_FSA = typeof window.showSaveFilePicker === "function" && typeof window.showOpenFilePicker === "function";
+
+// Is there a usable data store right now? FSA mode needs a permission-granted handle;
+// local mode is always ready (IndexedDB is universally available).
+function isActive() { return HAS_FSA ? !!(fileHandle && !needsReconnect) : true; }
 
 // ---- State -----------------------------------------------------------------
 const STATUSES = ["office", "remote", "holiday"];
@@ -250,6 +291,7 @@ let state = normalize(null);   // days: {iso: status}, holidays: {iso: name}, qu
 let fileHandle = null;
 let needsReconnect = false;   // saved handle exists but write permission not yet re-granted this session
 let moreConnect = false;      // on the connect screen, reveal the secondary (create/open) options
+let noticeDismissed = false;  // local mode: user dismissed the data-loss caution for this session
 let viewYear, viewMonth;                              // month currently displayed (0-based)
 {
   const now = new Date();
@@ -308,15 +350,26 @@ async function readFromFile() {
   }
 }
 
+// Local-mode load: the whole state JSON lives under one IndexedDB key.
+async function loadLocal() {
+  const raw = await idb("readonly", s => s.get("data"));
+  if (raw) { try { state = normalize(JSON.parse(raw)); } catch (e) { console.error("bad saved data", e); } }
+}
+
 let writeChain = Promise.resolve();
-async function writeToFile() {
-  if (!fileHandle) return;
-  // serialize writes so rapid clicks don't clobber each other
+// Persist the current state — to the chosen file (FSA mode) or to IndexedDB (local
+// mode). Writes are serialized so rapid clicks can't clobber each other.
+function persist() {
   writeChain = writeChain.then(async () => {
-    const w = await fileHandle.createWritable();
-    await w.write(JSON.stringify(state, null, 2));
-    await w.close();
-  }).catch(err => console.error("write failed", err));
+    if (HAS_FSA) {
+      if (!fileHandle) return;
+      const w = await fileHandle.createWritable();
+      await w.write(JSON.stringify(state, null, 2));
+      await w.close();
+    } else {
+      await idb("readwrite", s => s.put(JSON.stringify(state), "data"));
+    }
+  }).catch(err => console.error("save failed", err));
   return writeChain;
 }
 
@@ -330,7 +383,7 @@ async function connectNew() {
   needsReconnect = false;
   await saveHandle(h);
   await readFromFile();      // adopt existing content if the chosen file already had some
-  await writeToFile();
+  await persist();
   render();
 }
 async function connectExisting() {
@@ -353,7 +406,7 @@ async function setDay(isoDate, status, name) {
   state.days[isoDate] = status;
   if (status === "holiday" && name && name.trim()) state.holidays[isoDate] = name.trim();
   else delete state.holidays[isoDate];
-  await writeToFile();
+  await persist();
   render();
 }
 
@@ -361,7 +414,7 @@ async function setQuota(pct) {
   let v = Math.round(Number(pct));
   if (!Number.isFinite(v)) v = state.quotaPct;
   state.quotaPct = Math.max(1, Math.min(100, v));
-  await writeToFile();
+  await persist();
   render();
 }
 function onQuotaChange(e) { setQuota(e.target.value); }
@@ -369,7 +422,7 @@ function onQuotaChange(e) { setQuota(e.target.value); }
 async function setPeriod(p) {
   if (!PERIODS.includes(p)) return;
   state.period = p;
-  await writeToFile();
+  await persist();
   render();
 }
 function onPeriodChange(e) { setPeriod(e.target.value); }
@@ -412,6 +465,7 @@ function computeSummary() {
 let openPopover = null;
 
 function fileStatusHTML() {
+  if (!HAS_FSA) return `<span class="filestatus">Saved in this browser</span>`;
   if (fileHandle && !needsReconnect) return `<span class="filestatus">Data file: <b>${fileHandle.name}</b></span>`;
   if (fileHandle) return `<span class="filestatus">Reconnect required: <b>${fileHandle.name}</b></span>`;
   return `<span class="filestatus">No data file connected</span>`;
@@ -475,7 +529,11 @@ function render() {
   else if (behind <= 0.5) verdict = `<span class="ok">On pace</span>`;
   else verdict = `<span class="warn">Behind by ${Math.round(behind)} office day${Math.round(behind) === 1 ? "" : "s"}</span>`;
 
-  const active = fileHandle && !needsReconnect;   // a usable, permission-granted data file
+  const active = isActive();   // usable data store: FSA file granted, or local IndexedDB
+
+  const notice = (!HAS_FSA && !noticeDismissed)
+    ? `<div class="notice"><span class="notice-ico">⚠</span><span>This browser is the only copy of your log — clearing site data will erase it. Back up with <b>File ▸ Export</b>.</span><button class="notice-x" data-act="dismissNotice" title="Dismiss">✕</button></div>`
+    : "";
 
   const periodOptions = [["month", "Monthly"], ["quarter", "Quarterly"], ["year", "Yearly"]]
     .map(([v, l]) => `<option value="${v}"${state.period === v ? " selected" : ""}>${l}</option>`).join("");
@@ -499,7 +557,7 @@ function render() {
       </details>
       <div class="spacer"></div>
     </div>
-
+    ${notice}
     <div class="summary">
       <div class="qhead">
         <h2>${s.label}</h2>
@@ -584,7 +642,7 @@ function onCellClick(e) {
   const cell = e.currentTarget;
   const key = cell.getAttribute("data-iso");
   closePopover();
-  if (!fileHandle) { alert("Connect a data file first (top-right)."); return; }
+  if (!isActive()) { alert("Connect a data file first."); return; }
 
   const pop = document.createElement("div");
   pop.className = "pop";
@@ -624,6 +682,7 @@ function onAction(e) {
     case "open":  connectExisting().catch(reportErr); break;
     case "reconnect": reconnect().catch(reportErr); break;
     case "more":  moreConnect = true; render(); break;
+    case "dismissNotice": noticeDismissed = true; render(); break;
     case "exportJson": exportJson(); break;
     case "exportCsv":  exportCsv(); break;
     case "import": importFile().catch(reportErr); break;
@@ -651,20 +710,43 @@ function exportCsv() {
   download(`work_log-${todayISO()}.csv`, rows.join("\r\n"), "text/csv");
 }
 async function importFile() {
-  const [h] = await window.showOpenFilePicker({
-    types: [{ description: "JSON", accept: { "application/json": [".json"] } }],
-  });
-  const data = JSON.parse(await (await h.getFile()).text());
+  let text;
+  if (HAS_FSA) {
+    const [h] = await window.showOpenFilePicker({
+      types: [{ description: "JSON", accept: { "application/json": [".json"] } }],
+    });
+    text = await (await h.getFile()).text();
+  } else {
+    text = await pickFileText();   // File System Access API absent — use a plain file input
+    if (text == null) return;
+  }
+  const data = JSON.parse(text);
   if (!confirm("Replace all current data with the contents of this file?")) return;
   state = normalize(data);
-  await writeToFile();     // persist restored data to the connected file (if any)
+  await persist();
   render();
+}
+
+// Read a chosen file's text via a transient <input type=file> (browsers without FSA).
+function pickFileText() {
+  return new Promise((resolve) => {
+    const inp = document.createElement("input");
+    inp.type = "file";
+    inp.accept = "application/json,.json";
+    inp.onchange = () => { const f = inp.files && inp.files[0]; resolve(f ? f.text() : null); };
+    inp.click();
+  });
 }
 
 // ---- Boot ------------------------------------------------------------------
 (async function init() {
-  render();  // draw immediately (empty state / summary)
+  render();  // draw immediately
   try {
+    if (!HAS_FSA) {                 // local mode: data lives in IndexedDB, no file to connect
+      await loadLocal();
+      render();
+      return;
+    }
     const h = await loadHandle();
     if (h) {
       fileHandle = h;
