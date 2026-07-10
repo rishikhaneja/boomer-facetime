@@ -1,0 +1,687 @@
+<meta charset="utf-8">
+<title>Boomer Facetime</title>
+<style>
+  :root {
+    color-scheme: light;
+    --face: #c0c0c0;      /* window / button face (silver) */
+    --face-lt: #dfdfdf;
+    --white: #ffffff;
+    --gray: #808080;      /* dark bevel */
+    --black: #0a0a0a;
+    --navy: #000080;      /* title bar */
+    --navy2: #1084d0;
+    --desktop: #b3aa8e;   /* beige desktop */
+    --field: #ffffff;     /* sunken input wells */
+    --text: #0a0a0a;
+    --muted: #45443f;
+    --office: #000080;  --office-bg: #c4cfe6;
+    --remote: #006b00;  --remote-bg: #c6ddc2;
+    --holiday: #7a5c00; --holiday-bg: #e3d6ac;
+    --weekend-bg: #cfc8b0; --weekend-tag: #6a5c34;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font: 12px/1.35 Tahoma, "MS Sans Serif", "Segoe UI", sans-serif;
+    margin: 0; padding: 20px 12px 60px; background: var(--desktop); color: var(--text);
+    -webkit-font-smoothing: none;
+  }
+
+  /* window frame (raised bevel) */
+  .wrap {
+    max-width: 780px; margin: 0 auto; background: var(--face); padding: 3px;
+    box-shadow: inset -1px -1px var(--black), inset 1px 1px var(--white),
+                inset -2px -2px var(--gray), inset 2px 2px var(--face-lt);
+  }
+  .titlebar {
+    display: flex; align-items: center; gap: 6px; padding: 3px 3px 3px 6px;
+    background: linear-gradient(90deg, var(--navy), var(--navy2));
+    color: #fff; user-select: none;
+  }
+  .titlebar .tb-title { flex: 1; font-size: 12px; font-weight: 700; }
+  .titlebar .tb-ctrls { display: flex; gap: 2px; }
+  .tb-btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 18px; height: 16px; background: var(--face); color: #000;
+    font: 700 11px/1 Tahoma, sans-serif;
+    box-shadow: inset -1px -1px var(--black), inset 1px 1px var(--white),
+                inset -2px -2px var(--gray), inset 2px 2px var(--face-lt);
+  }
+  .winbody { padding: 8px; }
+
+  /* toolbar */
+  .topbar { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
+  .topbar .spacer { flex: 1; }
+  .filestatus { font-size: 12px; color: var(--muted); }
+  .filestatus b { color: var(--text); }
+
+  /* buttons — raised; sink on press */
+  button {
+    font: 12px Tahoma, "MS Sans Serif", sans-serif; color: #000; cursor: pointer;
+    min-height: 23px; padding: 3px 11px; border: none; background: var(--face);
+    box-shadow: inset -1px -1px var(--black), inset 1px 1px var(--white),
+                inset -2px -2px var(--gray), inset 2px 2px var(--face-lt);
+  }
+  button:active {
+    padding: 4px 10px 2px 12px;
+    box-shadow: inset -1px -1px var(--white), inset 1px 1px var(--black),
+                inset -2px -2px var(--face-lt), inset 2px 2px var(--gray);
+  }
+  button:focus { outline: 1px dotted #000; outline-offset: -4px; }
+  button.primary { font-weight: 700; }
+
+  /* summary group box (sunken) */
+  .summary {
+    background: var(--face); padding: 12px; margin-bottom: 10px;
+    box-shadow: inset -1px -1px var(--white), inset 1px 1px var(--gray),
+                inset -2px -2px var(--face-lt), inset 2px 2px var(--black);
+  }
+  .summary .qhead { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
+  .summary .qhead h2 { font-size: 13px; margin: 0; font-weight: 700; }
+  .summary .qhead .ratio { font-weight: 700; }
+  .summary .qhead .target { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: var(--muted); }
+
+  /* sunken white fields */
+  input, select {
+    font: 12px Tahoma, "MS Sans Serif", sans-serif; color: #000; background: var(--field);
+    border: none; padding: 3px 4px;
+    box-shadow: inset -1px -1px var(--white), inset 1px 1px var(--gray),
+                inset -2px -2px var(--face-lt), inset 2px 2px var(--black);
+  }
+  .summary .qhead .target input { width: 44px; text-align: center; }
+  .summary .qhead .periodsel { cursor: pointer; }
+
+  .metrics { display: flex; gap: 22px; flex-wrap: wrap; }
+  .metric .big { font-size: 26px; font-weight: 700; line-height: 1; }
+  .metric .lbl { font-size: 11px; color: var(--muted); margin-top: 3px; }
+  .ok { color: #006b00; }
+  .warn { color: #7a5c00; }
+  .bad { color: #a00000; }
+
+  .progress { margin-top: 12px; }
+  .bar {
+    position: relative; height: 18px; overflow: hidden; background: var(--white);
+    box-shadow: inset -1px -1px var(--white), inset 1px 1px var(--gray),
+                inset -2px -2px var(--face-lt), inset 2px 2px var(--black);
+  }
+  .bar .fill { position: absolute; left: 2px; top: 2px; bottom: 2px; background: var(--navy); }
+  .bar .mark { position: absolute; top: 0; bottom: 0; width: 2px; background: #000; }
+  .proglabel { display: flex; justify-content: space-between; margin-top: 5px; font-size: 12px; font-weight: 700; }
+
+  /* calendar */
+  .calbar { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+  .calbar h2 { font-size: 13px; margin: 0; min-width: 150px; text-align: center; font-weight: 700; }
+  .calbar .spacer { flex: 1; }
+
+  .grid {
+    display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px;
+    background: var(--face); padding: 4px;
+    box-shadow: inset -1px -1px var(--white), inset 1px 1px var(--gray),
+                inset -2px -2px var(--face-lt), inset 2px 2px var(--black);
+  }
+  .dow { text-align: center; font-size: 11px; font-weight: 700; color: #000; padding: 3px 0; }
+  .cell {
+    position: relative; min-height: 60px; padding: 4px 5px; cursor: pointer;
+    display: flex; flex-direction: column; background: var(--field);
+    box-shadow: inset -1px -1px var(--gray), inset 1px 1px var(--white);
+  }
+  .cell.empty { background: transparent; box-shadow: none; cursor: default; }
+  .cell.today { outline: 1px dotted #000; outline-offset: -3px; }
+  .cell .num { font-size: 12px; font-weight: 700; }
+  .cell .tag { margin-top: auto; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .3px; }
+  .cell .hname { font-size: 10px; color: #333; line-height: 1.15; }
+  .cell.office { background: var(--office-bg); }  .cell.office .tag { color: var(--office); }
+  .cell.remote { background: var(--remote-bg); }  .cell.remote .tag { color: var(--remote); }
+  .cell.holiday { background: var(--holiday-bg); } .cell.holiday .tag { color: var(--holiday); }
+  .cell.weekend { background: var(--weekend-bg); } .cell.weekend .tag { color: var(--weekend-tag); }
+
+  /* popover = mini window */
+  .pop {
+    position: absolute; z-index: 50; width: 214px; padding: 3px; background: var(--face);
+    box-shadow: inset -1px -1px var(--black), inset 1px 1px var(--white),
+                inset -2px -2px var(--gray), inset 2px 2px var(--face-lt),
+                3px 3px 0 rgba(0,0,0,.35);
+  }
+  .pop .date { font-size: 11px; font-weight: 700; color: #fff; background: var(--navy); padding: 3px 6px; margin: -3px -3px 6px; }
+  .pop .row { display: flex; gap: 5px; margin: 6px 3px; }
+  .pop .row button { flex: 1; }
+  .pop input { width: calc(100% - 6px); margin: 0 3px 6px; }
+  .pop button.office { color: var(--office); }
+  .pop button.remote { color: var(--remote); }
+  .pop button.holiday { color: var(--holiday); }
+
+  /* Chrome-required gate (dialog) */
+  .wrap.gate-win { max-width: 460px; margin: 70px auto; }
+  .gate { text-align: center; padding: 18px 20px 22px; }
+  .gate h1 { font-size: 15px; margin: 0 0 10px; }
+  .gate p { font-size: 12px; margin: 0; }
+  .hint { font-size: 11px; color: var(--muted); margin-top: 6px; }
+
+  /* status bar */
+  .statusbar { display: flex; gap: 3px; margin-top: 8px; }
+  .sb-panel {
+    font-size: 11px; padding: 2px 6px; color: #000; background: var(--face);
+    box-shadow: inset -1px -1px var(--white), inset 1px 1px var(--gray),
+                inset -2px -2px var(--face-lt), inset 2px 2px var(--black);
+  }
+  .sb-grow { flex: 1; }
+
+  /* File menu (dropdown for secondary actions) */
+  .menu { position: relative; }
+  .menu > summary {
+    display: inline-flex; align-items: center; gap: 5px; list-style: none; cursor: pointer;
+    min-height: 23px; padding: 3px 11px; background: var(--face); color: #000; user-select: none;
+    box-shadow: inset -1px -1px var(--black), inset 1px 1px var(--white),
+                inset -2px -2px var(--gray), inset 2px 2px var(--face-lt);
+  }
+  .menu > summary::-webkit-details-marker { display: none; }
+  .menu[open] > summary {
+    box-shadow: inset -1px -1px var(--white), inset 1px 1px var(--black),
+                inset -2px -2px var(--face-lt), inset 2px 2px var(--gray);
+  }
+  .menu-list {
+    position: absolute; z-index: 60; top: 100%; left: 0; margin-top: 1px; min-width: 150px;
+    display: flex; flex-direction: column; padding: 2px; background: var(--face);
+    box-shadow: inset -1px -1px var(--black), inset 1px 1px var(--white),
+                inset -2px -2px var(--gray), inset 2px 2px var(--face-lt),
+                2px 2px 0 rgba(0,0,0,.35);
+  }
+  .menu-list button, .menu-list button:active {
+    border: none; box-shadow: none; background: transparent; color: #000;
+    text-align: left; padding: 4px 18px 4px 10px; min-height: 22px;
+  }
+  .menu-list button:hover { background: var(--navy); color: #fff; }
+
+  /* no-file connect prompt (fills the calendar area) */
+  .connect {
+    display: flex; align-items: center; justify-content: center;
+    min-height: 340px; padding: 24px; text-align: center; background: var(--face);
+    box-shadow: inset -1px -1px var(--white), inset 1px 1px var(--gray),
+                inset -2px -2px var(--face-lt), inset 2px 2px var(--black);
+  }
+  .connect-inner { max-width: 340px; }
+  .connect-title { font-size: 14px; font-weight: 700; margin-bottom: 8px; }
+  .connect-msg { font-size: 12px; color: var(--muted); line-height: 1.45; margin-bottom: 18px; }
+  .connect-msg code { font-family: "Courier New", monospace; background: var(--field); padding: 0 3px;
+    box-shadow: inset -1px -1px var(--white), inset 1px 1px var(--gray); }
+  .connect-actions { display: flex; flex-direction: column; gap: 8px; }
+  .connect-actions button { min-height: 27px; }
+  .connect-more, .connect-more:active {
+    align-self: center; border: none; box-shadow: none; background: transparent;
+    min-height: 0; padding: 6px 4px; color: #000080; text-decoration: underline; font-size: 12px;
+  }
+  .connect-more:hover { color: #1084d0; }
+</style>
+
+<div id="app"></div>
+
+<script>
+"use strict";
+
+// ---- Chrome / File System Access API gate ----------------------------------
+if (typeof window.showSaveFilePicker !== "function" || typeof window.showOpenFilePicker !== "function") {
+  document.getElementById("app").innerHTML =
+    '<div class="wrap gate-win">' +
+    '<div class="titlebar"><span class="tb-title">Boomer Facetime</span>' +
+    '<span class="tb-ctrls"><span class="tb-btn">_</span><span class="tb-btn">□</span><span class="tb-btn tb-x">✕</span></span></div>' +
+    '<div class="winbody gate"><h1>Google Chrome required</h1>' +
+    '<p>This tool saves your data to a real file on disk using the File System Access API, ' +
+    'which is only available in Chrome (or Edge). Please open <code>index.html</code> in Chrome.</p></div></div>';
+  throw new Error("File System Access API unavailable");
+}
+
+// ---- State -----------------------------------------------------------------
+const STATUSES = ["office", "remote", "holiday"];
+const DEFAULT_QUOTA = 60;   // percent of a period's working days that must be in office
+const PERIODS = ["month", "quarter", "year"];
+
+// Build a clean state from possibly-partial file/import data, applying defaults.
+function normalize(data) {
+  data = data || {};
+  const q = Math.round(Number(data.quotaPct));
+  return {
+    version: 1,
+    quotaPct: q >= 1 && q <= 100 ? q : DEFAULT_QUOTA,
+    period: PERIODS.includes(data.period) ? data.period : "quarter",
+    days: data.days || {},
+    holidays: data.holidays || {},
+  };
+}
+let state = normalize(null);   // days: {iso: status}, holidays: {iso: name}, quotaPct, period
+let fileHandle = null;
+let needsReconnect = false;   // saved handle exists but write permission not yet re-granted this session
+let moreConnect = false;      // on the connect screen, reveal the secondary (create/open) options
+let viewYear, viewMonth;                              // month currently displayed (0-based)
+{
+  const now = new Date();
+  viewYear = now.getFullYear();
+  viewMonth = now.getMonth();
+}
+
+// ---- Date helpers ----------------------------------------------------------
+const pad = n => String(n).padStart(2, "0");
+const iso = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const todayISO = () => iso(new Date());
+const isWeekend = d => { const g = d.getDay(); return g === 0 || g === 6; };
+const monthName = m => ["January","February","March","April","May","June","July",
+                        "August","September","October","November","December"][m];
+
+// resolved status of a day. Defaults (not stored): weekends -> holiday, weekdays -> remote.
+// "weekend" is returned only for its lighter styling; it counts as a holiday.
+function statusOf(isoDate, dateObj) {
+  if (state.days[isoDate]) return state.days[isoDate];
+  if (dateObj && isWeekend(dateObj)) return "weekend";
+  return "remote";
+}
+
+// ---- IndexedDB (single value: the file handle) -----------------------------
+function idb(mode, fn) {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open("worklog", 1);
+    req.onupgradeneeded = () => req.result.createObjectStore("kv");
+    req.onerror = () => reject(req.error);
+    req.onsuccess = () => {
+      const tx = req.result.transaction("kv", mode);
+      const store = tx.objectStore("kv");
+      const r = fn(store);
+      tx.oncomplete = () => resolve(r && r.result);
+      tx.onerror = () => reject(tx.error);
+    };
+  });
+}
+const saveHandle = h => idb("readwrite", s => s.put(h, "handle"));
+const loadHandle = () => idb("readonly", s => s.get("handle"));
+
+// ---- File read / write -----------------------------------------------------
+async function ensurePermission(mode) {
+  if (!fileHandle) return false;
+  const opts = { mode };
+  if ((await fileHandle.queryPermission(opts)) === "granted") return true;
+  return (await fileHandle.requestPermission(opts)) === "granted";
+}
+
+async function readFromFile() {
+  const file = await fileHandle.getFile();
+  const text = await file.text();
+  if (text.trim()) {
+    const data = JSON.parse(text);
+    state = normalize(data);
+  }
+}
+
+let writeChain = Promise.resolve();
+async function writeToFile() {
+  if (!fileHandle) return;
+  // serialize writes so rapid clicks don't clobber each other
+  writeChain = writeChain.then(async () => {
+    const w = await fileHandle.createWritable();
+    await w.write(JSON.stringify(state, null, 2));
+    await w.close();
+  }).catch(err => console.error("write failed", err));
+  return writeChain;
+}
+
+// ---- Connect flows ---------------------------------------------------------
+async function connectNew() {
+  const h = await window.showSaveFilePicker({
+    suggestedName: "work_log.json",
+    types: [{ description: "JSON", accept: { "application/json": [".json"] } }],
+  });
+  fileHandle = h;
+  needsReconnect = false;
+  await saveHandle(h);
+  await readFromFile();      // adopt existing content if the chosen file already had some
+  await writeToFile();
+  render();
+}
+async function connectExisting() {
+  const [h] = await window.showOpenFilePicker({
+    types: [{ description: "JSON", accept: { "application/json": [".json"] } }],
+  });
+  fileHandle = h;
+  needsReconnect = false;
+  await saveHandle(h);
+  await readFromFile();
+  render();
+}
+async function reconnect() {
+  if (await ensurePermission("readwrite")) { needsReconnect = false; await readFromFile(); }
+  render();
+}
+
+// ---- Mutations -------------------------------------------------------------
+async function setDay(isoDate, status, name) {
+  state.days[isoDate] = status;
+  if (status === "holiday" && name && name.trim()) state.holidays[isoDate] = name.trim();
+  else delete state.holidays[isoDate];
+  await writeToFile();
+  render();
+}
+
+async function setQuota(pct) {
+  let v = Math.round(Number(pct));
+  if (!Number.isFinite(v)) v = state.quotaPct;
+  state.quotaPct = Math.max(1, Math.min(100, v));
+  await writeToFile();
+  render();
+}
+function onQuotaChange(e) { setQuota(e.target.value); }
+
+async function setPeriod(p) {
+  if (!PERIODS.includes(p)) return;
+  state.period = p;
+  await writeToFile();
+  render();
+}
+function onPeriodChange(e) { setPeriod(e.target.value); }
+
+// ---- Quarter summary math --------------------------------------------------
+function periodBounds(year, month, period) {
+  if (period === "month")
+    return { label: `${monthName(month)} ${year}`, start: new Date(year, month, 1), end: new Date(year, month + 1, 0) };
+  if (period === "year")
+    return { label: `${year}`, start: new Date(year, 0, 1), end: new Date(year, 11, 31) };
+  const q = Math.floor(month / 3);   // quarter (default)
+  return { label: `Q${q + 1} ${year}`, start: new Date(year, q * 3, 1), end: new Date(year, q * 3 + 3, 0) };
+}
+
+function computeSummary() {
+  const { label, start, end } = periodBounds(viewYear, viewMonth, state.period);
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  let working = 0, office = 0, remainingWorking = 0;
+
+  for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+    const key = iso(d);
+    // apply defaults: weekend -> holiday, weekday -> remote; explicit entries win.
+    const st = state.days[key] || (isWeekend(d) ? "holiday" : "remote");
+    if (st === "holiday") continue;               // not a working day
+    working++;
+    if (st === "office") office++;                 // every other working day is remote
+    if (d >= today) remainingWorking++;            // working day, today or later
+  }
+
+  // office days to reach the quota; ceil so the in-office ratio never dips below it.
+  const required = Math.ceil(state.quotaPct / 100 * working);
+  const needed = Math.max(0, required - office);
+  const ratio = working > 0 ? office / working : null;
+  const achievable = needed <= remainingWorking;
+  const workingElapsed = working - remainingWorking;   // working days before today
+  return { label, working, workingElapsed, office, required, needed, remainingWorking, ratio, achievable };
+}
+
+// ---- Rendering -------------------------------------------------------------
+let openPopover = null;
+
+function fileStatusHTML() {
+  if (fileHandle && !needsReconnect) return `<span class="filestatus">Data file: <b>${fileHandle.name}</b></span>`;
+  if (fileHandle) return `<span class="filestatus">Reconnect required: <b>${fileHandle.name}</b></span>`;
+  return `<span class="filestatus">No data file connected</span>`;
+}
+
+// The no-file screen: one obvious primary action, with the alternatives tucked behind a link.
+function connectPanelHTML() {
+  const title = needsReconnect ? "Welcome back" : "No data file yet";
+  const msg = needsReconnect
+    ? "Your log is saved on disk — your browser needs one click to reopen it."
+    : "Boomer Facetime keeps everything in one <code>work_log.json</code> on your disk. Create one to get started.";
+
+  const primary = needsReconnect
+    ? `<button class="primary" data-act="reconnect">Continue — ${escapeHtml(fileHandle.name)}</button>`
+    : `<button class="primary" data-act="new">Create a new log</button>`;
+
+  let rest;
+  if (moreConnect) {
+    rest = (needsReconnect ? `<button data-act="new">Create a new log</button>` : "") +
+           `<button data-act="open">Open an existing log</button>`;
+  } else {
+    rest = `<button class="connect-more" data-act="more">${needsReconnect ? "Use a different file →" : "I already have a file →"}</button>`;
+  }
+
+  return `
+    <div class="connect">
+      <div class="connect-inner">
+        <div class="connect-title">${title}</div>
+        <div class="connect-msg">${msg}</div>
+        <div class="connect-actions">
+          ${primary}
+          ${rest}
+        </div>
+      </div>
+    </div>`;
+}
+
+function render() {
+  const app = document.getElementById("app");
+  const s = computeSummary();
+
+  // floor the displayed %: it must never reach the quota (green) unless the true ratio does.
+  const pct = s.ratio === null ? null : Math.floor(s.ratio * 100);
+  const ratioTxt = pct === null ? "—" : pct + "%";
+  const ratioCls = pct === null ? "" : (pct >= state.quotaPct ? "ok" : (pct >= state.quotaPct - 10 ? "warn" : "bad"));
+
+  // cadence: office days per working week needed over the rest of the period
+  const cadence = s.needed === 0 ? 0 : (s.remainingWorking > 0 ? s.needed * 5 / s.remainingWorking : Infinity);
+  const cadenceTxt = s.needed === 0 ? "0" : (isFinite(cadence) ? cadence.toFixed(1) : "—");
+
+  // progress bar: fill = office booked toward requirement; tick = fraction of quarter elapsed
+  const fillPct = s.required > 0 ? Math.min(100, s.office / s.required * 100) : 100;
+  const tickPct = s.working > 0 ? s.workingElapsed / s.working * 100 : 0;
+
+  // verdict beside the bar
+  const targetByNow = state.quotaPct / 100 * s.workingElapsed;   // office days a straight-line pace wants by today
+  const behind = targetByNow - s.office;
+  let verdict;
+  if (s.needed === 0) verdict = `<span class="ok">✓ Quota met</span>`;
+  else if (!s.achievable) verdict = `<span class="bad">⚠ Not achievable — ${s.needed} needed, only ${s.remainingWorking} working days left</span>`;
+  else if (behind <= 0.5) verdict = `<span class="ok">On pace</span>`;
+  else verdict = `<span class="warn">Behind by ${Math.round(behind)} office day${Math.round(behind) === 1 ? "" : "s"}</span>`;
+
+  const active = fileHandle && !needsReconnect;   // a usable, permission-granted data file
+
+  const periodOptions = [["month", "Monthly"], ["quarter", "Quarterly"], ["year", "Yearly"]]
+    .map(([v, l]) => `<option value="${v}"${state.period === v ? " selected" : ""}>${l}</option>`).join("");
+
+  app.innerHTML = `
+  <div class="wrap">
+    <div class="titlebar">
+      <span class="tb-title">Boomer Facetime</span>
+      <span class="tb-ctrls"><span class="tb-btn">_</span><span class="tb-btn">□</span><span class="tb-btn tb-x">✕</span></span>
+    </div>
+    <div class="winbody">
+    ${active ? `
+    <div class="topbar">
+      <details class="menu">
+        <summary>File ▾</summary>
+        <div class="menu-list">
+          <button data-act="exportJson">Export JSON</button>
+          <button data-act="exportCsv">Export CSV</button>
+          <button data-act="import">Import…</button>
+        </div>
+      </details>
+      <div class="spacer"></div>
+    </div>
+
+    <div class="summary">
+      <div class="qhead">
+        <h2>${s.label}</h2>
+        <select id="period" class="periodsel">${periodOptions}</select>
+        <span class="ratio ${ratioCls}">in-office ${ratioTxt}</span>
+        <label class="filestatus target">target
+          <input type="number" id="quota" min="1" max="100" step="1" value="${state.quotaPct}">%
+        </label>
+      </div>
+      <div class="metrics">
+        <div class="metric"><div class="big ${s.needed === 0 ? 'ok' : ''}">${s.needed}</div><div class="lbl">office days still needed</div></div>
+        <div class="metric"><div class="big">${cadenceTxt}</div><div class="lbl">office days / week from now</div></div>
+        <div class="metric"><div class="big">${s.remainingWorking}</div><div class="lbl">working days left</div></div>
+      </div>
+      <div class="progress">
+        <div class="bar">
+          <div class="fill" style="width:${fillPct}%"></div>
+          <div class="mark" style="left:${tickPct}%" title="on-pace for today"></div>
+        </div>
+        <div class="proglabel"><span>${s.office} / ${s.required} office days</span><span>${verdict}</span></div>
+      </div>
+    </div>
+
+    <div class="calbar">
+      <button data-act="prev">‹</button>
+      <div class="spacer"></div>
+      <h2>${monthName(viewMonth)} ${viewYear}</h2>
+      <div class="spacer"></div>
+      <button data-act="next">›</button>
+      <button data-act="today">Today</button>
+    </div>
+    <div class="grid" id="grid">${gridHTML()}</div>
+    ` : connectPanelHTML()}
+    <div class="statusbar">
+      <span class="sb-panel sb-grow">${fileStatusHTML()}</span>
+      <span class="sb-panel">${s.label}</span>
+    </div>
+    </div>
+  </div>`;
+
+  // wire top-level actions
+  app.querySelectorAll("[data-act]").forEach(b => b.addEventListener("click", onAction));
+  // wire day cells
+  app.querySelectorAll(".cell[data-iso]").forEach(c => c.addEventListener("click", onCellClick));
+  const quotaInput = app.querySelector("#quota");
+  if (quotaInput) quotaInput.addEventListener("change", onQuotaChange);
+  const periodSel = app.querySelector("#period");
+  if (periodSel) periodSel.addEventListener("change", onPeriodChange);
+}
+
+function gridHTML() {
+  const dows = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"].map(d => `<div class="dow">${d}</div>`).join("");
+  const first = new Date(viewYear, viewMonth, 1);
+  const offset = (first.getDay() + 6) % 7;           // Monday-first blank cells
+  const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
+  const tISO = todayISO();
+
+  let cells = "";
+  for (let i = 0; i < offset; i++) cells += `<div class="cell empty"></div>`;
+  for (let day = 1; day <= daysInMonth; day++) {
+    const d = new Date(viewYear, viewMonth, day);
+    const key = iso(d);
+    const st = statusOf(key, d);
+    const cls = st;
+    const tag = `<div class="tag">${st === "weekend" ? "holiday" : st}</div>`;
+    const hname = state.holidays[key] ? `<div class="hname">${escapeHtml(state.holidays[key])}</div>` : "";
+    const todayCls = key === tISO ? " today" : "";
+    cells += `<div class="cell ${cls}${todayCls}" data-iso="${key}">
+      <div class="num">${day}</div>${hname}${tag}</div>`;
+  }
+  return dows + cells;
+}
+
+function escapeHtml(s) { return s.replace(/[&<>"]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;" }[c])); }
+
+// ---- Interaction -----------------------------------------------------------
+function closePopover() { if (openPopover) { openPopover.remove(); openPopover = null; document.removeEventListener("click", onDocClick, true); } }
+function onDocClick(e) { if (openPopover && !openPopover.contains(e.target)) closePopover(); }
+
+function onCellClick(e) {
+  e.stopPropagation();
+  const cell = e.currentTarget;
+  const key = cell.getAttribute("data-iso");
+  closePopover();
+  if (!fileHandle) { alert("Connect a data file first (top-right)."); return; }
+
+  const pop = document.createElement("div");
+  pop.className = "pop";
+  const existingName = state.holidays[key] || "";
+  pop.innerHTML = `
+    <div class="date">${key}</div>
+    <div class="row">
+      <button class="office" data-s="office">Office</button>
+      <button class="remote" data-s="remote">Remote</button>
+    </div>
+    <input type="text" id="hname" placeholder="Holiday name (optional)" value="${escapeHtml(existingName)}">
+    <div class="row"><button class="holiday" data-s="holiday">Holiday</button></div>`;
+  cell.appendChild(pop);
+  // keep popover on screen (flip left if near right edge)
+  const r = pop.getBoundingClientRect();
+  if (r.right > window.innerWidth - 8) pop.style.right = "0";
+  openPopover = pop;
+
+  pop.querySelectorAll("button[data-s]").forEach(b => b.addEventListener("click", ev => {
+    ev.stopPropagation();
+    const s = b.getAttribute("data-s");
+    const name = pop.querySelector("#hname").value;
+    closePopover();
+    setDay(key, s, name);
+  }));
+  setTimeout(() => document.addEventListener("click", onDocClick, true), 0);
+}
+
+function onAction(e) {
+  const act = e.currentTarget.getAttribute("data-act");
+  document.querySelectorAll("details.menu[open]").forEach(d => d.open = false);
+  switch (act) {
+    case "prev":  if (--viewMonth < 0) { viewMonth = 11; viewYear--; } render(); break;
+    case "next":  if (++viewMonth > 11) { viewMonth = 0; viewYear++; } render(); break;
+    case "today": { const n = new Date(); viewYear = n.getFullYear(); viewMonth = n.getMonth(); render(); break; }
+    case "new":   connectNew().catch(reportErr); break;
+    case "open":  connectExisting().catch(reportErr); break;
+    case "reconnect": reconnect().catch(reportErr); break;
+    case "more":  moreConnect = true; render(); break;
+    case "exportJson": exportJson(); break;
+    case "exportCsv":  exportCsv(); break;
+    case "import": importFile().catch(reportErr); break;
+  }
+}
+function reportErr(err) { if (err && err.name !== "AbortError") { console.error(err); alert("Error: " + err.message); } }
+
+// ---- Export / Import -------------------------------------------------------
+function download(filename, text, mime) {
+  const blob = new Blob([text], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = filename; a.click();
+  URL.revokeObjectURL(url);
+}
+function exportJson() {
+  download(`work_log-${todayISO()}.json`, JSON.stringify(state, null, 2), "application/json");
+}
+function exportCsv() {
+  const rows = ["date,status,note"];
+  Object.keys(state.days).sort().forEach(k => {
+    const note = (state.holidays[k] || "").replace(/"/g, '""');
+    rows.push(`${k},${state.days[k]},${note ? `"${note}"` : ""}`);
+  });
+  download(`work_log-${todayISO()}.csv`, rows.join("\r\n"), "text/csv");
+}
+async function importFile() {
+  const [h] = await window.showOpenFilePicker({
+    types: [{ description: "JSON", accept: { "application/json": [".json"] } }],
+  });
+  const data = JSON.parse(await (await h.getFile()).text());
+  if (!confirm("Replace all current data with the contents of this file?")) return;
+  state = normalize(data);
+  await writeToFile();     // persist restored data to the connected file (if any)
+  render();
+}
+
+// ---- Boot ------------------------------------------------------------------
+(async function init() {
+  render();  // draw immediately (empty state / summary)
+  try {
+    const h = await loadHandle();
+    if (h) {
+      fileHandle = h;
+      if ((await h.queryPermission({ mode: "readwrite" })) === "granted") {
+        await readFromFile();
+        render();
+      } else {
+        // permission needs a user gesture — show the reconnect prompt
+        needsReconnect = true;
+        render();
+      }
+    }
+  } catch (err) { console.error("restore failed", err); }
+})();
+
+// close any open File menu when clicking outside it
+document.addEventListener("click", (e) => {
+  document.querySelectorAll("details.menu[open]").forEach(d => { if (!d.contains(e.target)) d.open = false; });
+});
+</script>

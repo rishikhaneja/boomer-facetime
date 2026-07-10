@@ -1,0 +1,14 @@
+# Personal data — the app writes your work log here; keep it out of the repo
+work_log.json
+
+# Exported backups the app generates
+work_log-*.json
+work_log-*.csv
+
+# Claude Code local settings (machine-specific permissions)
+.claude/settings.local.json
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+desktop.ini
