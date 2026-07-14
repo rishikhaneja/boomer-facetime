@@ -68,6 +68,11 @@ Architecture:
   `"office"|"remote"|"holiday"`, `holidays` maps ISO date → name. `normalize()` is the single place
   defaults are applied — route every file-load and import through it. `quotaPct` and `period` persist
   with the data, not just in the UI.
+- **Backward compatibility** — any change to the state shape must keep older exports loading cleanly.
+  A file written by an earlier version, or one missing newer fields, must import without error or
+  data loss: `normalize()` fills every gap with a default and drops nothing it doesn't recognise. Add
+  migrations there (keyed off `version`) rather than assuming a field is present, and never rename or
+  repurpose an existing field's meaning without a migration that maps the old value forward.
 - **Implicit defaults (not stored)** — weekdays default to remote, weekends to holiday; explicit
   `days` entries override. `statusOf` returns `"weekend"` only for lighter styling — it counts as a
   holiday in the math.
@@ -78,3 +83,9 @@ Architecture:
 - **Rendering** — `render()` rebuilds the app's `innerHTML` and re-wires listeners on every change;
   there's no diffing, so every mutation must update `state`, `await persist()`, then `render()`
   (see `setDay` / `setQuota` / `setPeriod`).
+- **Visual theme** — a deliberate retro Windows-95 look: silver (`#c0c0c0`) window faces, a navy
+  gradient titlebar, a beige desktop, and box-shadow bevels — raised for buttons and frames, sunken
+  for input wells and group boxes, inverted on `:active` to read as pressed. Fonts are Tahoma /
+  MS Sans Serif with font-smoothing off, and focus shows as a dotted rect. Keep new UI in this idiom:
+  reuse the bevel shadow recipes and the `--face` / `--navy` / `--desktop` variables rather than
+  reaching for flat modern styling.
