@@ -78,7 +78,6 @@
   }
   .summary .qhead { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
   .summary .qhead h2 { font-size: 13px; margin: 0; font-weight: 700; }
-  .summary .qhead .ratio { font-weight: 700; }
   .summary .qhead .target { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: var(--muted); }
 
   /* sunken white fields */
@@ -107,6 +106,7 @@
   .bar .fill { position: absolute; left: 2px; top: 2px; bottom: 2px; background: var(--navy); }
   .bar .mark { position: absolute; top: 0; bottom: 0; width: 2px; background: #000; }
   .proglabel { display: flex; justify-content: space-between; margin-top: 5px; font-size: 12px; font-weight: 700; }
+  .proglabel .ratio { margin-left: 8px; }
 
   /* calendar */
   .calbar { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
@@ -126,7 +126,9 @@
     box-shadow: inset -1px -1px var(--gray), inset 1px 1px var(--white);
   }
   .cell.empty { background: transparent; box-shadow: none; cursor: default; }
-  .cell.today { outline: 1px dotted #000; outline-offset: -3px; }
+  /* today: the Win95 selection colours, so it reads at a glance */
+  .cell.today { outline: 2px solid var(--navy); outline-offset: -2px; }
+  .cell.today .num { align-self: flex-start; background: var(--navy); color: #fff; padding: 0 4px; }
   .cell .num { font-size: 12px; font-weight: 700; }
   .cell .tag { margin-top: auto; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .3px; }
   .cell .hname { font-size: 10px; color: #333; line-height: 1.15; }
@@ -572,9 +574,9 @@ function render() {
   const cadence = s.needed === 0 ? 0 : (s.remainingWorking > 0 ? s.needed * 5 / s.remainingWorking : Infinity);
   const cadenceTxt = s.needed === 0 ? "0" : (isFinite(cadence) ? cadence.toFixed(1) : "—");
 
-  // progress bar: fill = office booked toward requirement; tick = fraction of quarter elapsed
-  const fillPct = s.required > 0 ? Math.min(100, s.office / s.required * 100) : 100;
-  const tickPct = s.working > 0 ? s.workingElapsed / s.working * 100 : 0;
+  // progress bar: fill = the in-office ratio itself; mark = the quota line it has to reach
+  const fillPct = s.ratio === null ? 0 : s.ratio * 100;
+  const markPct = state.quotaPct;
 
   // verdict beside the bar
   const targetByNow = state.quotaPct / 100 * s.workingElapsed;   // office days a straight-line pace wants by today
@@ -618,7 +620,6 @@ function render() {
       <div class="qhead">
         <h2>${s.label}</h2>
         <select id="period" class="periodsel">${periodOptions}</select>
-        <span class="ratio ${ratioCls}">in-office ${ratioTxt}</span>
         <label class="filestatus target">target
           <input type="number" id="quota" min="1" max="100" step="1" value="${state.quotaPct}">%
         </label>
@@ -631,9 +632,9 @@ function render() {
       <div class="progress">
         <div class="bar">
           <div class="fill" style="width:${fillPct}%"></div>
-          <div class="mark" style="left:${tickPct}%" title="on-pace for today"></div>
+          <div class="mark" style="left:${markPct}%" title="target ${state.quotaPct}%"></div>
         </div>
-        <div class="proglabel"><span>${s.office} / ${s.required} office days</span><span>${verdict}</span></div>
+        <div class="proglabel"><span>${s.office} / ${s.working} working days<span class="ratio ${ratioCls}">in-office ${ratioTxt}</span></span><span>${verdict}</span></div>
       </div>
     </div>
 
