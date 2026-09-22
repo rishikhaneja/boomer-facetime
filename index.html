@@ -505,7 +505,7 @@ function computeSummary() {
     if (st === "holiday") continue;               // not a working day
     working++;
     if (st === "office") office++;                 // every other working day is remote
-    if (d >= today) remainingWorking++;            // working day, today or later
+    if (d > today) remainingWorking++;             // working day still ahead; today is already logged
   }
 
   // office days to reach the quota; ceil so the in-office ratio never dips below it.
@@ -513,7 +513,7 @@ function computeSummary() {
   const needed = Math.max(0, required - office);
   const ratio = working > 0 ? office / working : null;
   const achievable = needed <= remainingWorking;
-  const workingElapsed = working - remainingWorking;   // working days before today
+  const workingElapsed = working - remainingWorking;   // working days through today
   return { label, working, workingElapsed, office, required, needed, remainingWorking, ratio, achievable };
 }
 
